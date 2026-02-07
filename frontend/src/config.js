@@ -1,6 +1,7 @@
+const rawUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
 const config = {
-    // Default to local mock backend, but allow override via environment variable
-    BACKEND_URL: import.meta.env.VITE_BACKEND_URL || "http://localhost:4000"
+    // Normalize URL: Remove trailing slash if present to avoid double-slash errors in fetch calls
+    BACKEND_URL: rawUrl.endsWith('/') ? rawUrl.slice(0, -1) : rawUrl
 };
 
 export default config;
