@@ -1,12 +1,19 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+// PostgreSQL Connection Pool
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false
+    }
+});
 
 // Correct CORS settings for production/development
 app.use(cors({
@@ -16,166 +23,217 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 
-// --- Database Logic (JSON Files) ---
-const DB_DIR = path.join(__dirname, 'data');
-const USERS_FILE = path.join(DB_DIR, 'users.json');
-const JOBS_FILE = path.join(DB_DIR, 'jobs.json');
+// --- Database Logic (PostgreSQL) ---
 
-// Ensure DB exists
-if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR);
-if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, JSON.stringify([]));
-if (!fs.existsSync(JOBS_FILE)) fs.writeFileSync(JOBS_FILE, JSON.stringify([]));
+async function initDb() {
+    const createUsersTable = `
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            credits INTEGER DEFAULT 1000,
+            created_at BIGINT
+        );
+    `;
+    const createJobsTable = `
+        CREATE TABLE IF NOT EXISTS jobs (
+            id UUID PRIMARY KEY,
+            researcher TEXT REFERENCES users(username),
+            docker_uri TEXT,
+            input_hash TEXT,
+            vram TEXT,
+            bounty INTEGER,
+            status TEXT,
+            worker TEXT,
+            result_hash TEXT,
+            created_at BIGINT,
+            started_at BIGINT,
+            completed_at BIGINT
+        );
+    `;
 
-function readData(file) {
     try {
-        const data = fs.readFileSync(file, 'utf8');
-        return JSON.parse(data);
-    } catch (e) {
-        return [];
+        await pool.query(createUsersTable);
+        await pool.query(createJobsTable);
+        console.log("Database tables initialized successfully.");
+    } catch (err) {
+        console.error("Error initializing database:", err);
     }
 }
 
-function writeData(file, data) {
-    fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
+initDb();
 
 // --- Endpoints ---
 
 // 1. Create User (Simulate PDA Initialization)
-app.post('/user', (req, res) => {
+app.post('/user', async (req, res) => {
     const { username } = req.body;
     if (!username) return res.status(400).json({ error: 'Username required' });
 
-    const users = readData(USERS_FILE);
+    try {
+        // Check if user exists
+        const userRes = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+        if (userRes.rows.length > 0) {
+            return res.json({ message: 'User already exists', user: userRes.rows[0] });
+        }
 
-    // Check if user exists
-    let user = users.find(u => u.username === username);
-    if (user) {
-        return res.json({ message: 'User already exists', user });
+        // Create new user
+        const newUser = {
+            username,
+            credits: 1000,
+            created_at: Date.now()
+        };
+        await pool.query(
+            'INSERT INTO users (username, credits, created_at) VALUES ($1, $2, $3)',
+            [newUser.username, newUser.credits, newUser.created_at]
+        );
+
+        console.log(`[USER] Created: ${username}`);
+        res.json({ message: 'User created successfully', user: newUser });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
-
-    // Create new user with starting credits (Simulate Airdrop/Faucet)
-    user = {
-        username,
-        credits: 1000,
-        created_at: Date.now()
-    };
-    users.push(user);
-    writeData(USERS_FILE, users);
-
-    console.log(`[USER] Created: ${username}`);
-    res.json({ message: 'User created successfully', user });
 });
 
 // 2. Get All Users (Public Ledger)
-app.get('/users', (req, res) => {
-    const users = readData(USERS_FILE);
-    res.json(users);
+app.get('/users', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM users');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // 3. Create Job (Researcher Spends Credits)
-app.post('/job', (req, res) => {
+app.post('/job', async (req, res) => {
     const { username, dockerURI, inputHash, VRAM, bounty } = req.body;
 
     if (!username || !bounty) return res.status(400).json({ error: 'Missing fields' });
 
-    const users = readData(USERS_FILE);
-    const userIndex = users.findIndex(u => u.username === username);
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
 
-    if (userIndex === -1) return res.status(404).json({ error: 'User not found' });
-    if (users[userIndex].credits < bounty) return res.status(400).json({ error: 'Insufficient credits' });
+        const userRes = await client.query('SELECT credits FROM users WHERE username = $1', [username]);
+        if (userRes.rows.length === 0) {
+            throw new Error('User not found');
+        }
 
-    // Deduct Credits
-    users[userIndex].credits -= Number(bounty);
-    writeData(USERS_FILE, users);
+        if (userRes.rows[0].credits < bounty) {
+            throw new Error('Insufficient credits');
+        }
 
-    // Create Job
-    const jobs = readData(JOBS_FILE);
-    const newJob = {
-        id: uuidv4(),
-        researcher: username,
-        dockerURI,
-        inputHash,
-        requirements: { VRAM },
-        bounty: Number(bounty),
-        status: 'OPEN',
-        worker: null,
-        resultHash: null,
-        created_at: Date.now()
-    };
-    jobs.push(newJob);
-    writeData(JOBS_FILE, jobs);
+        // Deduct Credits
+        await client.query('UPDATE users SET credits = credits - $1 WHERE username = $2', [Number(bounty), username]);
 
-    console.log(`[JOB] Created: ${newJob.id} by ${username} (-${bounty} credits)`);
-    res.json({ message: 'Job posted successfully', job: newJob });
+        // Create Job
+        const newJob = {
+            id: uuidv4(),
+            researcher: username,
+            dockerURI,
+            inputHash,
+            vram: VRAM,
+            bounty: Number(bounty),
+            status: 'OPEN',
+            worker: null,
+            resultHash: null,
+            created_at: Date.now()
+        };
+
+        await client.query(
+            'INSERT INTO jobs (id, researcher, docker_uri, input_hash, vram, bounty, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+            [newJob.id, newJob.researcher, newJob.dockerURI, newJob.inputHash, newJob.vram, newJob.bounty, newJob.status, newJob.created_at]
+        );
+
+        await client.query('COMMIT');
+        console.log(`[JOB] Created: ${newJob.id} by ${username} (-${bounty} credits)`);
+        res.json({ message: 'Job posted successfully', job: newJob });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        res.status(400).json({ error: err.message });
+    } finally {
+        client.release();
+    }
 });
 
 // 4. Get Jobs
-app.get('/jobs', (req, res) => {
-    const jobs = readData(JOBS_FILE);
-    // Optional filter
+app.get('/jobs', async (req, res) => {
     const status = req.query.status;
-    if (status) {
-        return res.json(jobs.filter(j => j.status === status));
+    try {
+        let result;
+        if (status) {
+            result = await pool.query('SELECT * FROM jobs WHERE status = $1', [status]);
+        } else {
+            result = await pool.query('SELECT * FROM jobs');
+        }
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
-    res.json(jobs);
 });
 
 // 5. Claim Job (Worker)
-app.post('/job/claim', (req, res) => {
+app.post('/job/claim', async (req, res) => {
     const { jobId, workerUsername } = req.body;
 
-    const jobs = readData(JOBS_FILE);
-    const jobIndex = jobs.findIndex(j => j.id === jobId);
+    try {
+        const jobRes = await pool.query('SELECT status FROM jobs WHERE id = $1', [jobId]);
+        if (jobRes.rows.length === 0) return res.status(404).json({ error: 'Job not found' });
+        if (jobRes.rows[0].status !== 'OPEN') return res.status(400).json({ error: 'Job not available' });
 
-    if (jobIndex === -1) return res.status(404).json({ error: 'Job not found' });
-    if (jobs[jobIndex].status !== 'OPEN') return res.status(400).json({ error: 'Job not available' });
+        const startedAt = Date.now();
+        const updateRes = await pool.query(
+            'UPDATE jobs SET status = $1, worker = $2, started_at = $3 WHERE id = $4 RETURNING *',
+            ['ASSIGNED', workerUsername, startedAt, jobId]
+        );
 
-    // Update Job
-    jobs[jobIndex].status = 'ASSIGNED';
-    jobs[jobIndex].worker = workerUsername;
-    jobs[jobIndex].started_at = Date.now();
-    writeData(JOBS_FILE, jobs);
-
-    console.log(`[JOB] Claimed: ${jobId} by ${workerUsername}`);
-    res.json({ message: 'Job claimed', job: jobs[jobIndex] });
+        console.log(`[JOB] Claimed: ${jobId} by ${workerUsername}`);
+        res.json({ message: 'Job claimed', job: updateRes.rows[0] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // 6. Complete Job & Reward (Worker)
-app.post('/job/result', (req, res) => {
+app.post('/job/result', async (req, res) => {
     const { jobId, resultHash } = req.body;
 
-    const jobs = readData(JOBS_FILE);
-    const jobIndex = jobs.findIndex(j => j.id === jobId);
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
 
-    if (jobIndex === -1) return res.status(404).json({ error: 'Job not found' });
-    if (jobs[jobIndex].status !== 'ASSIGNED') return res.status(400).json({ error: 'Job not in progress' });
+        const jobRes = await client.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
+        if (jobRes.rows.length === 0) throw new Error('Job not found');
+        if (jobRes.rows[0].status !== 'ASSIGNED') throw new Error('Job not in progress');
 
-    // Update Job
-    jobs[jobIndex].status = 'COMPLETED';
-    jobs[jobIndex].resultHash = resultHash;
-    jobs[jobIndex].completed_at = Date.now();
+        const job = jobRes.rows[0];
+        const completedAt = Date.now();
 
-    const reward = jobs[jobIndex].bounty;
-    const workerUsername = jobs[jobIndex].worker;
+        // Update Job
+        const updateJobRes = await client.query(
+            'UPDATE jobs SET status = $1, result_hash = $2, completed_at = $3 WHERE id = $4 RETURNING *',
+            ['COMPLETED', resultHash, completedAt, jobId]
+        );
 
-    writeData(JOBS_FILE, jobs);
+        const reward = job.bounty;
+        const workerUsername = job.worker;
 
-    // Reward Worker
-    const users = readData(USERS_FILE);
-    const workerIndex = users.findIndex(u => u.username === workerUsername);
+        // Reward Worker
+        const workerRes = await client.query('SELECT * FROM users WHERE username = $1', [workerUsername]);
+        if (workerRes.rows.length > 0) {
+            await client.query('UPDATE users SET credits = credits + $1 WHERE username = $2', [reward, workerUsername]);
+            console.log(`[REWARD] +${reward} credits to ${workerUsername}`);
+        } else {
+            console.log(`[WARN] Worker ${workerUsername} account not found for reward.`);
+        }
 
-    if (workerIndex !== -1) {
-        users[workerIndex].credits += reward;
-        writeData(USERS_FILE, users);
-        console.log(`[REWARD] +${reward} credits to ${workerUsername}`);
-    } else {
-        // If worker account implies existence, we might create it or error. 
-        // For simulation, we assume worker has an account.
-        console.log(`[WARN] Worker ${workerUsername} account not found for reward.`);
+        await client.query('COMMIT');
+        res.json({ message: 'Job completed and rewarded', job: updateJobRes.rows[0] });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        res.status(400).json({ error: err.message });
+    } finally {
+        client.release();
     }
-
-    res.json({ message: 'Job completed and rewarded', job: jobs[jobIndex] });
 });
 
 // Root
@@ -186,3 +244,4 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
