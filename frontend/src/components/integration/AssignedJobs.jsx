@@ -41,13 +41,17 @@ export const AssignedJobs = () => {
     }, []);
 
     const handleComplete = async (jobId) => {
+        const token = localStorage.getItem("velo_token");
         const resultHash = "QmResultHashMock" + Date.now();
 
         try {
-            // Mock Backend: POST /job/result
+            // Mock Backend: POST /job/result (Protected)
             const response = await fetch(`${config.BACKEND_URL}/job/result`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({
                     jobId: jobId,
                     resultHash: resultHash

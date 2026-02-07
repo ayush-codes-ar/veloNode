@@ -22,20 +22,22 @@ export const CreateJob = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        const username = localStorage.getItem("velo_user");
-        if (!username) {
-            alert("No User Profile Found. MINT one first!");
+        const token = localStorage.getItem("velo_token");
+        if (!token) {
+            alert("No Active Session Found. Please LOGIN first!");
             return;
         }
 
         setLoading(true);
         try {
-            // Mock Backend: POST /job
+            // Mock Backend: POST /job (Protected)
             const response = await fetch(`${config.BACKEND_URL}/job`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({
-                    username: username,
                     dockerURI: jobSpec.image,
                     inputHash: jobSpec.input,
                     VRAM: parseInt(jobSpec.vram),
@@ -46,7 +48,7 @@ export const CreateJob = () => {
             const data = await response.json();
 
             if (response.ok) {
-                alert(`Job Posted! Spent ${jobSpec.bounty} VELO credits (Mocknet).`);
+                alert(`Job Posted! Spent ${jobSpec.bounty} VELO credits.`);
                 window.location.reload();
             } else {
                 alert("Error: " + data.error);

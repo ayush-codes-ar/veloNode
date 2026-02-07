@@ -35,20 +35,22 @@ export const JobList = () => {
     }, []);
 
     const handleClaim = async (jobId) => {
-        const username = localStorage.getItem("velo_user");
-        if (!username) {
-            alert("Please Mint a Profile first!");
+        const token = localStorage.getItem("velo_token");
+        if (!token) {
+            alert("Please LOGIN first to claim work!");
             return;
         }
 
         try {
-            // Mock Backend: POST /job/claim
+            // Mock Backend: POST /job/claim (Protected)
             const response = await fetch(`${config.BACKEND_URL}/job/claim`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({
-                    jobId: jobId,
-                    workerUsername: username
+                    jobId: jobId
                 })
             });
 

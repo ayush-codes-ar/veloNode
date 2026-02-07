@@ -3,9 +3,25 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const { Pool } = require('pg');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_dev_only';
+
+// --- Security Middleware ---
+app.use(helmet()); // Secure HTTP headers
+
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per window
+    message: { error: 'Too many requests, please try again later.' }
+});
+app.use('/user/login', limiter);
+app.use('/user/register', limiter);
 
 // PostgreSQL Connection Pool
 const pool = new Pool({
@@ -19,7 +35,7 @@ const pool = new Pool({
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type']
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(bodyParser.json());
 
@@ -29,6 +45,7 @@ async function initDb() {
     const createUsersTable = `
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
+            password_hash TEXT,
             credits INTEGER DEFAULT 1000,
             created_at BIGINT
         );
@@ -61,66 +78,116 @@ async function initDb() {
 
 initDb();
 
+// --- Auth Middleware ---
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) return res.status(401).json({ error: 'Access denied. Token missing.' });
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ error: 'Invalid or expired token.' });
+        req.user = user;
+        next();
+    });
+};
+
 // --- Endpoints ---
 
-// 1. Create User (Simulate PDA Initialization)
-app.post('/user', async (req, res) => {
-    const { username } = req.body;
-    if (!username) return res.status(400).json({ error: 'Username required' });
+// 1. Register (New User)
+app.post('/user/register', async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
     try {
-        // Check if user exists
         const userRes = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-        if (userRes.rows.length > 0) {
-            return res.json({ message: 'User already exists', user: userRes.rows[0] });
-        }
+        if (userRes.rows.length > 0) return res.status(400).json({ error: 'User already exists' });
 
-        // Create new user
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
+
         const newUser = {
             username,
+            password_hash: passwordHash,
             credits: 1000,
             created_at: Date.now()
         };
+
         await pool.query(
-            'INSERT INTO users (username, credits, created_at) VALUES ($1, $2, $3)',
-            [newUser.username, newUser.credits, newUser.created_at]
+            'INSERT INTO users (username, password_hash, credits, created_at) VALUES ($1, $2, $3, $4)',
+            [newUser.username, newUser.password_hash, newUser.credits, newUser.created_at]
         );
 
-        console.log(`[USER] Created: ${username}`);
-        res.json({ message: 'User created successfully', user: newUser });
+        console.log(`[AUTH] User Registered: ${username}`);
+        res.status(201).json({ message: 'User registered successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// 2. Get All Users (Public Ledger)
+// 2. Login
+app.post('/user/login', async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+
+    try {
+        const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+        const user = result.rows[0];
+
+        if (!user) return res.status(400).json({ error: 'Invalid username or password' });
+
+        const validPassword = await bcrypt.compare(password, user.password_hash);
+        if (!validPassword) return res.status(400).json({ error: 'Invalid username or password' });
+
+        const token = jwt.sign({ username: user.username }, JWT_SECRET, { expiresIn: '24h' });
+
+        res.json({
+            token,
+            user: {
+                username: user.username,
+                credits: user.credits
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 3. Get Current User Profile (Protected)
+app.get('/user/profile', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query('SELECT username, credits, created_at FROM users WHERE username = $1', [req.user.username]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// 4. Get All Users (Public Ledger)
 app.get('/users', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM users');
+        const result = await pool.query('SELECT username, credits, created_at FROM users');
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// 3. Create Job (Researcher Spends Credits)
-app.post('/job', async (req, res) => {
-    const { username, dockerURI, inputHash, VRAM, bounty } = req.body;
+// 5. Create Job (Researcher Spends Credits) - Protected
+app.post('/job', authenticateToken, async (req, res) => {
+    const { dockerURI, inputHash, VRAM, bounty } = req.body;
+    const username = req.user.username;
 
-    if (!username || !bounty) return res.status(400).json({ error: 'Missing fields' });
+    if (!bounty) return res.status(400).json({ error: 'Bounty required' });
+    if (Number(bounty) <= 0) return res.status(400).json({ error: 'Invalid bounty amount' });
 
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
         const userRes = await client.query('SELECT credits FROM users WHERE username = $1', [username]);
-        if (userRes.rows.length === 0) {
-            throw new Error('User not found');
-        }
-
-        if (userRes.rows[0].credits < bounty) {
-            throw new Error('Insufficient credits');
-        }
+        if (userRes.rows[0].credits < bounty) throw new Error('Insufficient credits');
 
         // Deduct Credits
         await client.query('UPDATE users SET credits = credits - $1 WHERE username = $2', [Number(bounty), username]);
@@ -134,8 +201,6 @@ app.post('/job', async (req, res) => {
             vram: VRAM,
             bounty: Number(bounty),
             status: 'OPEN',
-            worker: null,
-            resultHash: null,
             created_at: Date.now()
         };
 
@@ -145,7 +210,7 @@ app.post('/job', async (req, res) => {
         );
 
         await client.query('COMMIT');
-        console.log(`[JOB] Created: ${newJob.id} by ${username} (-${bounty} credits)`);
+        console.log(`[JOB] Created: ${newJob.id} by ${username}`);
         res.json({ message: 'Job posted successfully', job: newJob });
     } catch (err) {
         await client.query('ROLLBACK');
@@ -155,7 +220,7 @@ app.post('/job', async (req, res) => {
     }
 });
 
-// 4. Get Jobs
+// 6. Get Jobs (Public)
 app.get('/jobs', async (req, res) => {
     const status = req.query.status;
     try {
@@ -171,9 +236,10 @@ app.get('/jobs', async (req, res) => {
     }
 });
 
-// 5. Claim Job (Worker)
-app.post('/job/claim', async (req, res) => {
-    const { jobId, workerUsername } = req.body;
+// 7. Claim Job (Worker) - Protected
+app.post('/job/claim', authenticateToken, async (req, res) => {
+    const { jobId } = req.body;
+    const workerUsername = req.user.username;
 
     try {
         const jobRes = await pool.query('SELECT status FROM jobs WHERE id = $1', [jobId]);
@@ -193,9 +259,10 @@ app.post('/job/claim', async (req, res) => {
     }
 });
 
-// 6. Complete Job & Reward (Worker)
-app.post('/job/result', async (req, res) => {
+// 8. Complete Job & Reward (Worker) - Protected
+app.post('/job/result', authenticateToken, async (req, res) => {
     const { jobId, resultHash } = req.body;
+    const workerUsername = req.user.username;
 
     const client = await pool.connect();
     try {
@@ -204,6 +271,7 @@ app.post('/job/result', async (req, res) => {
         const jobRes = await client.query('SELECT * FROM jobs WHERE id = $1', [jobId]);
         if (jobRes.rows.length === 0) throw new Error('Job not found');
         if (jobRes.rows[0].status !== 'ASSIGNED') throw new Error('Job not in progress');
+        if (jobRes.rows[0].worker !== workerUsername) throw new Error('Unauthorized worker');
 
         const job = jobRes.rows[0];
         const completedAt = Date.now();
@@ -215,16 +283,10 @@ app.post('/job/result', async (req, res) => {
         );
 
         const reward = job.bounty;
-        const workerUsername = job.worker;
 
         // Reward Worker
-        const workerRes = await client.query('SELECT * FROM users WHERE username = $1', [workerUsername]);
-        if (workerRes.rows.length > 0) {
-            await client.query('UPDATE users SET credits = credits + $1 WHERE username = $2', [reward, workerUsername]);
-            console.log(`[REWARD] +${reward} credits to ${workerUsername}`);
-        } else {
-            console.log(`[WARN] Worker ${workerUsername} account not found for reward.`);
-        }
+        await client.query('UPDATE users SET credits = credits + $1 WHERE username = $2', [reward, workerUsername]);
+        console.log(`[REWARD] +${reward} credits to ${workerUsername}`);
 
         await client.query('COMMIT');
         res.json({ message: 'Job completed and rewarded', job: updateJobRes.rows[0] });
@@ -238,7 +300,7 @@ app.post('/job/result', async (req, res) => {
 
 // Root
 app.get('/', (req, res) => {
-    res.send('VeloNode Mock Backend is Running! 🚀');
+    res.send('VeloNode Secure Backend is Running! 🚀');
 });
 
 app.listen(PORT, () => {

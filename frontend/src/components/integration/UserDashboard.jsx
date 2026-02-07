@@ -2,64 +2,82 @@ import React, { useState, useEffect } from 'react';
 import config from '../../config';
 
 /**
- * UserDashboard Component (Mock Backend Version)
+ * UserDashboard Component (Secure Production Version)
  * 
- * Manages User Identity via centralized mock server.
- * - Creates/Fetches User Profile
- * - Displays VELO Credits
+ * Manages User Identity via JWT Authentication.
+ * - Register/Login with Password
+ * - Persists JWT in localStorage
+ * - Displays VELO Credits from protected profile endpoint
  */
 export const UserDashboard = () => {
     const [username, setUsername] = useState(localStorage.getItem("velo_user") || "");
+    const [token, setToken] = useState(localStorage.getItem("velo_token") || "");
     const [credits, setCredits] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [isRegistering, setIsRegistering] = useState(false);
+
     const [inputName, setInputName] = useState("");
+    const [inputPass, setInputPass] = useState("");
 
-    // Poll for credit updates
+    // Fetch credits from protected profile endpoint
     useEffect(() => {
-        if (!username) return;
+        if (!token) return;
 
-        const fetchCredits = async () => {
+        const fetchProfile = async () => {
             try {
-                // In a real app we'd have a specific GET /user/:id endpoint.
-                // Here we fetch all and filter, or re-post to get current state (idempotent).
-                // Let's stick to the implementation plan: GET /users and filter.
-                const res = await fetch(`${config.BACKEND_URL}/users`);
-                const users = await res.json();
-                const myUser = users.find(u => u.username === username);
+                const res = await fetch(`${config.BACKEND_URL}/user/profile`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
 
-                if (myUser) {
-                    setCredits(myUser.credits);
+                if (res.status === 401 || res.status === 403) {
+                    logout();
+                    return;
+                }
+
+                const data = await res.json();
+                if (res.ok) {
+                    setCredits(data.credits);
+                    setUsername(data.username);
                 }
             } catch (err) {
-                console.error("Error fetching credits:", err);
+                console.error("Error fetching profile:", err);
             }
         };
 
-        fetchCredits();
-        const interval = setInterval(fetchCredits, 5000); // Poll every 5s
+        fetchProfile();
+        const interval = setInterval(fetchProfile, 10000); // Poll every 10s
         return () => clearInterval(interval);
 
-    }, [username]);
+    }, [token]);
 
-    const handleCreateUser = async () => {
-        if (!inputName) return alert("Enter a username");
+    const handleAuth = async (e) => {
+        e.preventDefault();
+        if (!inputName || !inputPass) return alert("Enter credentials");
         setLoading(true);
 
+        const endpoint = isRegistering ? '/user/register' : '/user/login';
+
         try {
-            // Call Mock Backend: Create or Get User
-            const response = await fetch(`${config.BACKEND_URL}/user`, {
+            const response = await fetch(`${config.BACKEND_URL}${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: inputName })
+                body: JSON.stringify({ username: inputName, password: inputPass })
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                localStorage.setItem("velo_user", data.user.username);
-                setUsername(data.user.username);
-                setCredits(data.user.credits);
-                alert(data.message);
+                if (isRegistering) {
+                    alert("Registration successful! Please login.");
+                    setIsRegistering(false);
+                    setInputPass("");
+                } else {
+                    localStorage.setItem("velo_token", data.token);
+                    localStorage.setItem("velo_user", data.user.username);
+                    setToken(data.token);
+                    setUsername(data.user.username);
+                    setCredits(data.user.credits);
+                }
             } else {
                 alert("Error: " + data.error);
             }
@@ -72,44 +90,68 @@ export const UserDashboard = () => {
         }
     };
 
+    const logout = () => {
+        localStorage.removeItem("velo_user");
+        localStorage.removeItem("velo_token");
+        setUsername("");
+        setToken("");
+        setCredits(null);
+    };
+
     return (
-        <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
+        <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl min-h-[220px]">
             <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
-                <span className="bg-blue-600 w-2 h-2 rounded-full mr-2"></span>
-                User Profile (Mocknet)
+                <span className={`w-2 h-2 rounded-full mr-2 ${token ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                {token ? 'Secure Profile' : 'Access Protocol'}
             </h2>
 
-            {!username ? (
-                <div className="space-y-4">
+            {!token ? (
+                <form onSubmit={handleAuth} className="space-y-4 animate-fade-in">
                     <p className="text-gray-400 text-sm">
-                        Create a profile to start earning or spending VELO credits.
+                        {isRegistering ? 'Create a secure vault for your compute credits.' : 'Login to access the decentralized marketplace.'}
                     </p>
-                    <div className="flex gap-2">
+                    <div className="grid grid-cols-1 gap-3">
                         <input
                             type="text"
-                            placeholder="Enter Username"
-                            className="flex-1 bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                            placeholder="Username"
+                            className="bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors"
                             value={inputName}
                             onChange={(e) => setInputName(e.target.value)}
                         />
+                        <input
+                            type="password"
+                            placeholder="Password"
+                            className="bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500 transition-colors"
+                            value={inputPass}
+                            onChange={(e) => setInputPass(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex items-center justify-between">
                         <button
-                            onClick={handleCreateUser}
-                            disabled={loading}
-                            className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded transition-all disabled:opacity-50"
+                            type="button"
+                            onClick={() => setIsRegistering(!isRegistering)}
+                            className="text-xs text-blue-400 hover:text-blue-300 underline"
                         >
-                            {loading ? "Minting..." : "Mint Profile"}
+                            {isRegistering ? "Back to Login" : "Need an account? Register"}
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded transition-all disabled:opacity-50"
+                        >
+                            {loading ? "Verifying..." : (isRegistering ? "Register" : "Login")}
                         </button>
                     </div>
-                </div>
+                </form>
             ) : (
                 <div className="animate-fade-in">
                     <div className="flex justify-between items-end mb-2">
                         <div>
-                            <p className="text-gray-400 text-xs uppercase tracking-widest">Username</p>
+                            <p className="text-gray-400 text-xs uppercase tracking-widest">Operator</p>
                             <p className="text-2xl font-bold text-white tracking-tight">{username}</p>
                         </div>
                         <div className="text-right">
-                            <p className="text-gray-400 text-xs uppercase tracking-widest">Balance</p>
+                            <p className="text-gray-400 text-xs uppercase tracking-widest">Vault Balance</p>
                             <p className="text-3xl font-mono text-green-400">
                                 {credits !== null ? credits.toLocaleString() : "..."} <span className="text-sm text-gray-500">VELO</span>
                             </p>
@@ -117,22 +159,21 @@ export const UserDashboard = () => {
                     </div>
 
                     <div className="mt-4 pt-4 border-t border-gray-700 flex justify-between text-sm">
-                        <span className="text-gray-500">Status: Active</span>
+                        <div className="flex items-center text-gray-500">
+                            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-2"></span>
+                            JWT_ACTIVE
+                        </div>
                         <div className="flex items-center text-green-500">
                             <span className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
-                            Mocknet Connected
+                            Production_Ready
                         </div>
                     </div>
 
                     <button
-                        onClick={() => {
-                            localStorage.removeItem("velo_user");
-                            setUsername("");
-                            setCredits(null);
-                        }}
+                        onClick={logout}
                         className="mt-4 text-xs text-red-400 hover:text-red-300 underline"
                     >
-                        Logout
+                        Sign Out
                     </button>
                 </div>
             )}
