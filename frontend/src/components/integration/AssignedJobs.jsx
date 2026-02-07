@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
 import config from '../../config';
 
 /**
- * AssignedJobs Component (Mock Backend Version)
+ * AssignedJobs Component (Secure & Centralized)
  * 
  * Shows jobs claimed by the worker.
  * Allows worker to "Complete & Reward" a job.
  */
 export const AssignedJobs = () => {
-    const wallet = useWallet();
     const [myJobs, setMyJobs] = useState([]);
 
     const fetchMyJobs = async () => {

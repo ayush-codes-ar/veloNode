@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
 import config from '../../config';
 
 /**
- * CreateJob Component (Mock Backend Version)
+ * CreateJob Component (Secure & Centralized)
  * 
  * Allows Researchers to post jobs.
  * - Spends Credits via Backend API
  * - Creates Job Entry
  */
 export const CreateJob = () => {
-    const wallet = useWallet();
     const [jobSpec, setJobSpec] = useState({
         image: 'pytorch/pytorch:latest',
         input: 'ipfs://QmInputHash123',

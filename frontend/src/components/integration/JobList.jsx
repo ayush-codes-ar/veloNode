@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
 import config from '../../config';
 
 /**
- * JobList Component (Mock Backend Version)
+ * JobList Component (Secure & Centralized)
  * 
  * Fetches "OPEN" jobs from the centralized backend.
  * Allows workers to "Claim" a job via API.
  */
 export const JobList = () => {
-    const wallet = useWallet();
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(false);
 
