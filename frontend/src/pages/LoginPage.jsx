@@ -47,7 +47,12 @@ const LoginPage = () => {
                     navigate('/dashboard');
                 }
             } else {
-                alert("Error: " + (data.error || "Unknown error occurred"));
+                // If it's my custom 404 error, show path and method
+                if (data.error === "Endpoint not found") {
+                    alert(`404 Error: ${data.path} [${data.method}] not found. \n${data.suggestion}`);
+                } else {
+                    alert("Error: " + (data.error || "Unknown error occurred"));
+                }
             }
 
         } catch (err) {

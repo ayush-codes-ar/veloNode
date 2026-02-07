@@ -39,6 +39,12 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 
+// --- Request Logging ---
+app.use((req, res, next) => {
+    console.log(`[HTTP] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+    next();
+});
+
 // --- Database Logic (PostgreSQL) ---
 
 async function initDb() {
