@@ -14,9 +14,13 @@ export const CreatedJobs = () => {
             const res = await fetch(`${config.BACKEND_URL}/jobs`);
             const allJobs = await res.json();
 
-            // Filter: I am the researcher
-            const myJobs = allJobs.filter(j => j.researcher === username);
-            setJobs(myJobs);
+            if (Array.isArray(allJobs)) {
+                // Filter: I am the researcher
+                const myJobs = allJobs.filter(j => j.researcher === username);
+                setJobs(myJobs);
+            } else {
+                setJobs([]);
+            }
         } catch (err) {
             console.error("Error fetching created jobs:", err);
         }

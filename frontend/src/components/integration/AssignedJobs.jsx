@@ -13,12 +13,15 @@ export const AssignedJobs = () => {
             const res = await fetch(`${config.BACKEND_URL}/jobs`);
             const allJobs = await res.json();
 
-            const myAssigned = allJobs.filter(j =>
-                j.worker === username &&
-                j.status !== 'OPEN'
-            );
-
-            setMyJobs(myAssigned);
+            if (Array.isArray(allJobs)) {
+                const myAssigned = allJobs.filter(j =>
+                    j.worker === username &&
+                    j.status !== 'OPEN'
+                );
+                setMyJobs(myAssigned);
+            } else {
+                setMyJobs([]);
+            }
         } catch (err) {
             console.error("Error fetching my jobs:", err);
         }

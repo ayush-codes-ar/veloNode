@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Tag, Cpu, User, ArrowUpRight } from 'lucide-react';
+import { Tag, Cpu, User, ArrowUpRight, Database } from 'lucide-react';
 import config from '../../config';
 
 export const JobList = () => {
@@ -11,7 +11,12 @@ export const JobList = () => {
         try {
             const res = await fetch(`${config.BACKEND_URL}/jobs?status=OPEN`);
             const data = await res.json();
-            setJobs(data);
+            if (Array.isArray(data)) {
+                setJobs(data);
+            } else {
+                console.error("Jobs data is not an array:", data);
+                setJobs([]);
+            }
         } catch (err) {
             console.error("Error fetching jobs:", err);
             setJobs([]);
