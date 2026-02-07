@@ -76,6 +76,20 @@ async function initDb() {
     try {
         await pool.query(createUsersTable);
         await pool.query(createJobsTable);
+
+        // --- Schema Migrations ---
+        // Ensure password_hash column exists (for older databases)
+        const checkColumnQuery = `
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name='users' AND column_name='password_hash';
+        `;
+        const columnRes = await pool.query(checkColumnQuery);
+        if (columnRes.rows.length === 0) {
+            console.log("[DB] Migrating: Adding 'password_hash' to 'users' table...");
+            await pool.query("ALTER TABLE users ADD COLUMN password_hash TEXT;");
+        }
+
         console.log("Database tables initialized successfully.");
     } catch (err) {
         console.error("Error initializing database:", err);
