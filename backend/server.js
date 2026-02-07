@@ -298,9 +298,25 @@ app.post('/job/result', authenticateToken, async (req, res) => {
     }
 });
 
-// Root
-app.get('/', (req, res) => {
-    res.send('VeloNode Secure Backend is Running! 🚀');
+// --- Global Error Handlers ---
+
+// 404 Handler (JSON)
+app.use((req, res) => {
+    res.status(404).json({
+        error: 'Endpoint not found',
+        path: req.path,
+        method: req.method,
+        suggestion: 'Check if your BACKEND_URL includes the correct protocol and port.'
+    });
+});
+
+// 500 Handler (JSON)
+app.use((err, req, res, next) => {
+    console.error(`[ERROR] ${err.stack}`);
+    res.status(500).json({
+        error: 'Internal Server Error',
+        message: err.message
+    });
 });
 
 app.listen(PORT, () => {

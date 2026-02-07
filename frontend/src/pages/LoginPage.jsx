@@ -23,6 +23,14 @@ const LoginPage = () => {
                 body: JSON.stringify({ username: inputName, password: inputPass })
             });
 
+            // Check if response is JSON
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                const text = await response.text();
+                console.error("Non-JSON Response received:", text);
+                throw new Error(`Server returned non-JSON response (${response.status}). This usually means the BACKEND_URL is wrong or the server is down.`);
+            }
+
             const data = await response.json();
 
             if (response.ok) {
@@ -39,12 +47,12 @@ const LoginPage = () => {
                     navigate('/dashboard');
                 }
             } else {
-                alert("Error: " + data.error);
+                alert("Error: " + (data.error || "Unknown error occurred"));
             }
 
         } catch (err) {
             console.error(err);
-            alert("Connection failed: " + err.message);
+            alert("Auth Failure: " + err.message);
         } finally {
             setLoading(false);
         }

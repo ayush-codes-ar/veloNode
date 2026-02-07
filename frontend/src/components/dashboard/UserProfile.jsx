@@ -25,6 +25,13 @@ export const UserProfile = () => {
                     return;
                 }
 
+                // Check if response is JSON
+                const contentType = res.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                    console.error("Non-JSON profile response");
+                    return;
+                }
+
                 const data = await res.json();
                 if (res.ok) {
                     setCredits(data.credits);
