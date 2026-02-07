@@ -1,0 +1,71 @@
+.how-it-works {
+    padding: 8rem 2rem;
+    background-color: var(--bg-dark);
+    position: relative;
+    overflow: hidden;
+}
+
+.how-it-works-title {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 4rem;
+    background: linear-gradient(to right, var(--text-primary), var(--text-secondary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.cards-container {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.tilt-card {
+    background: var(--glass-bg);
+    border: var(--glass-border);
+    backdrop-filter: var(--glass-blur);
+    padding: 2.5rem;
+    border-radius: 16px;
+    flex: 1;
+    min-width: 280px;
+    max-width: 350px;
+    transition: transform 0.1s ease-out, box-shadow 0.3s ease;
+    position: relative;
+    transform-style: preserve-3d;
+    cursor: default;
+}
+
+.tilt-card:hover {
+    border-color: var(--neon-cyan);
+    box-shadow: 0 10px 30px -10px rgba(0, 243, 255, 0.15);
+}
+
+.card-icon {
+    font-size: 2rem;
+    color: var(--neon-cyan);
+    margin-bottom: 1.5rem;
+    display: inline-flex;
+    padding: 1rem;
+    background: rgba(0, 243, 255, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(0, 243, 255, 0.1);
+    transform: translateZ(20px);
+}
+
+.card-title {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+    transform: translateZ(15px);
+}
+
+.card-desc {
+    color: var(--text-secondary);
+    font-size: 1rem;
+    line-height: 1.6;
+    transform: translateZ(10px);
+}

@@ -1,0 +1,111 @@
+/* Existing Navbar Styles */
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 1.5rem 0;
+    z-index: 1000;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(0px);
+    /* Initially clear */
+}
+
+.navbar.scrolled {
+    background: rgba(10, 11, 16, 0.85);
+    backdrop-filter: blur(12px);
+    padding: 1rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.navbar-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    /* Changed from flex-start to space-between */
+}
+
+/* Brand Styles */
+.navbar-brand {
+    font-size: 2.2rem;
+    font-weight: 700;
+    text-decoration: none;
+    letter-spacing: -0.01em;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    display: inline-block;
+
+    /* Gradient Text */
+    background: linear-gradient(135deg, var(--neon-cyan) 0%, #0088ff 40%, var(--neon-purple) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+
+    /* Initial Filter Glow */
+    filter: drop-shadow(0 0 2px rgba(0, 243, 255, 0.3));
+    animation: glow-breathe 8s ease-in-out infinite;
+}
+
+@keyframes glow-breathe {
+
+    0%,
+    100% {
+        filter: drop-shadow(0 0 2px rgba(0, 243, 255, 0.3));
+    }
+
+    50% {
+        filter: drop-shadow(0 0 8px rgba(0, 243, 255, 0.5));
+    }
+}
+
+/* Hover Interaction */
+.navbar-brand:hover {
+    letter-spacing: 0.02em;
+    animation: none;
+    filter: drop-shadow(0 0 12px rgba(0, 243, 255, 0.6)) drop-shadow(0 0 20px rgba(0, 243, 255, 0.2));
+}
+
+/* Ensure visited link keeps transparent/gradient color */
+.navbar-brand:visited {
+    color: transparent;
+}
+
+/* Navigation Links */
+.navbar-links {
+    display: flex;
+    align-items: center;
+    gap: 2.5rem;
+}
+
+.nav-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    text-transform: capitalize;
+}
+
+.nav-link:hover {
+    color: var(--neon-cyan);
+    text-shadow: 0 0 8px rgba(0, 243, 255, 0.4);
+}
+
+.nav-cta {
+    background: rgba(0, 243, 255, 0.1);
+    border: 1px solid rgba(0, 243, 255, 0.5);
+    color: var(--neon-cyan);
+    padding: 0.6rem 1.5rem;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 10px rgba(0, 243, 255, 0.1);
+}
+
+.nav-cta:hover {
+    background: var(--neon-cyan);
+    color: var(--bg-dark);
+    box-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
+}
