@@ -1,12 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { Play, CheckCircle, Clock, Hash, ExternalLink } from 'lucide-react';
 import config from '../../config';
 
-/**
- * AssignedJobs Component (Secure & Centralized)
- * 
- * Shows jobs claimed by the worker.
- * Allows worker to "Complete & Reward" a job.
- */
 export const AssignedJobs = () => {
     const [myJobs, setMyJobs] = useState([]);
 
@@ -15,12 +10,9 @@ export const AssignedJobs = () => {
         if (!username) return;
 
         try {
-            // Mock Backend: GET /jobs
-            // We fetch all and filter client side, or backend could support specific query
             const res = await fetch(`${config.BACKEND_URL}/jobs`);
             const allJobs = await res.json();
 
-            // Filter: Worker matches AND status is not OPEN
             const myAssigned = allJobs.filter(j =>
                 j.worker === username &&
                 j.status !== 'OPEN'
@@ -43,17 +35,13 @@ export const AssignedJobs = () => {
         const resultHash = "QmResultHashMock" + Date.now();
 
         try {
-            // Mock Backend: POST /job/result (Protected)
             const response = await fetch(`${config.BACKEND_URL}/job/result`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({
-                    jobId: jobId,
-                    resultHash: resultHash
-                })
+                body: JSON.stringify({ jobId, resultHash })
             });
 
             const data = await response.json();
@@ -61,7 +49,7 @@ export const AssignedJobs = () => {
             if (response.ok) {
                 alert(`Job Completed! Reward credited to your account.`);
                 fetchMyJobs();
-                window.location.reload(); // Refresh credits in Dashboard
+                window.location.reload();
             } else {
                 alert("Error: " + data.error);
             }
@@ -71,47 +59,85 @@ export const AssignedJobs = () => {
         }
     };
 
-    if (myJobs.length === 0) return null;
+    if (myJobs.length === 0) return (
+        <div className="text-center py-10 bg-gray-900/30 rounded-2xl border border-gray-800">
+            <p className="text-gray-500 text-sm italic">No active workload assigned to this operator.</p>
+        </div>
+    );
 
     return (
-        <div className="border-t border-gray-700 pt-6 mt-6">
-            <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-4">
-                My Workload
-            </h3>
+        <div className="space-y-4">
+            {myJobs.map(job => {
+                const isCompleted = job.status === 'COMPLETED';
+                return (
+                    <div
+                        key={job.id}
+                        className={`bg-gray-800/40 border p-5 rounded-2xl transition-all relative overflow-hidden group
+                            ${isCompleted ? 'border-green-500/20' : 'border-blue-500/20'}`}
+                    >
+                        {/* Background Pulsing Glow */}
+                        {!isCompleted && <div className="absolute inset-0 bg-blue-500/5 animate-pulse pointer-events-none" />}
 
-            <div className="space-y-4">
-                {myJobs.map(job => (
-                    <div key={job.id} className="bg-gray-800 p-4 rounded border border-blue-900/50 relative overflow-hidden">
-                        {/* Status Badge */}
-                        <div className="absolute top-2 right-2">
-                            <span className={`text-xs px-2 py-1 rounded font-bold ${job.status === 'COMPLETED' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'
-                                }`}>
-                                {job.status}
-                            </span>
+                        <div className="flex flex-col md:flex-row justify-between gap-6 relative z-10 font-bold uppercase">
+                            <div className="flex-1 space-y-3">
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-lg ${isCompleted ? 'bg-green-500/10' : 'bg-blue-500/10'}`}>
+                                        {isCompleted ? <CheckCircle className="text-green-400" size={20} /> : <Play className="text-blue-400" size={20} />}
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h4 className="text-white text-base tracking-tight">{job.dockerURI}</h4>
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${isCompleted ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                                {job.status}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-gray-500 text-[10px] mt-1">
+                                            <Hash size={10} />
+                                            <span>{job.id.slice(0, 16)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 pt-2">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] text-gray-600">Time Started</p>
+                                        <div className="flex items-center gap-1.5 text-gray-400 text-xs">
+                                            <Clock size={12} />
+                                            <span>{new Date(job.started_at).toLocaleTimeString()}</span>
+                                        </div>
+                                    </div>
+                                    {isCompleted && (
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] text-gray-600">Verification Hash</p>
+                                            <div className="flex items-center gap-1.5 text-green-500/70 text-xs truncate">
+                                                <ExternalLink size={12} />
+                                                <span>{job.resultHash?.slice(0, 12)}...</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-row md:flex-col items-center justify-between md:justify-center gap-4">
+                                <div className="text-right flex-1 md:flex-none">
+                                    <p className="text-[10px] text-gray-500">Reward</p>
+                                    <p className="text-xl font-black text-white font-mono">{job.bounty} <span className="text-[10px] text-gray-600">VELO</span></p>
+                                </div>
+
+                                {!isCompleted && (
+                                    <button
+                                        onClick={() => handleComplete(job.id)}
+                                        className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl text-xs font-black shadow-lg shadow-blue-500/20 transition-all active:scale-95"
+                                    >
+                                        COMPLETE TASK
+                                    </button>
+                                )}
+                            </div>
                         </div>
-
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                            <h4 className="text-white font-mono text-sm">{job.id.slice(0, 12)}...</h4>
-                        </div>
-
-                        <div className="text-xs text-gray-400 space-y-1 mb-3">
-                            <p>Docker: {job.dockerURI}</p>
-                            <p>Started: {new Date(job.started_at).toLocaleTimeString()}</p>
-                            {job.status === 'COMPLETED' && <p className="text-green-400">Result: {job.resultHash?.slice(0, 10)}...</p>}
-                        </div>
-
-                        {job.status === 'ASSIGNED' && (
-                            <button
-                                onClick={() => handleComplete(job.id)}
-                                className="w-full bg-blue-700 hover:bg-blue-600 text-white text-xs py-2 rounded uppercase font-bold transition-colors"
-                            >
-                                Submit Result (+Reward)
-                            </button>
-                        )}
                     </div>
-                ))}
-            </div>
+                );
+            })}
         </div>
     );
 };
+

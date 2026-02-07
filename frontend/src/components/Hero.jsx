@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import Button from './ui/Button';
 import './Hero.css';
 
@@ -35,7 +36,9 @@ const Hero = () => {
                     Earn by sharing your compute.
                 </p>
                 <div className="hero-actions">
-                    <Button variant="primary">Start Computing</Button>
+                    <Link to="/dashboard">
+                        <Button variant="primary">Start Computing</Button>
+                    </Link>
                     <Button variant="outline">Read Documentation</Button>
                 </div>
             </div>
