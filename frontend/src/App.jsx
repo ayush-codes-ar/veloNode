@@ -3,7 +3,7 @@ import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import HowItWorks from './components/HowItWorks'
 import TechStack from './components/TechStack'
-import Encryption from './components/Security' // Renaming if needed, assuming default export
+import Security from './components/Security'
 import Footer from './components/Footer'
 import { IntegrationDashboard } from './components/integration/IntegrationDashboard'
 
