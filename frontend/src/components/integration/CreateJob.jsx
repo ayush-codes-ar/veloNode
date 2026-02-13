@@ -69,11 +69,11 @@ export const CreateJob = () => {
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    dockerURI: finalImage,
-                    inputHash: jobSpec.input,
-                    VRAM: parseInt(jobSpec.vram),
+                    docker_uri: finalImage,
+                    input_hash: jobSpec.input,
+                    vram: jobSpec.vram,
                     bounty: parseInt(jobSpec.bounty),
-                    verificationHash: jobSpec.verificationHash
+                    verification_hash: jobSpec.verificationHash
                 })
             });
 
@@ -278,7 +278,7 @@ export const CreateJob = () => {
                         <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-700 space-y-3">
                             <div className="flex justify-between">
                                 <span className="text-gray-500 text-xs uppercase">Image</span>
-                                <span className="text-white font-mono text-sm">{jobSpec.image}</span>
+                                <span className="text-white font-mono text-sm">{isAutoBuild ? 'Auto-Build' : jobSpec.image}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-gray-500 text-xs uppercase">Input</span>

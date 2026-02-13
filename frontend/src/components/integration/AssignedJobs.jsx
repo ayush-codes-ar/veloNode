@@ -89,7 +89,7 @@ export const AssignedJobs = () => {
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <h4 className="text-white text-base tracking-tight">{job.dockerURI}</h4>
+                                            <h4 className="text-white text-base tracking-tight">{job.docker_uri}</h4>
                                             <span className={`text-[10px] px-2 py-0.5 rounded-full ${isCompleted ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
                                                 {job.status}
                                             </span>

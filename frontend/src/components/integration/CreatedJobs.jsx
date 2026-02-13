@@ -70,7 +70,7 @@ export const CreatedJobs = () => {
                         <div className="space-y-2">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <h4 className="text-sm font-bold text-blue-400 font-mono truncate max-w-[150px]">{job.dockerURI}</h4>
+                                    <h4 className="text-sm font-bold text-blue-400 font-mono truncate max-w-[150px]">{job.docker_uri}</h4>
                                     <div className="flex items-center gap-1 text-[10px] text-gray-500">
                                         <Hash size={10} />
                                         <span>{job.id.slice(0, 8)}...</span>

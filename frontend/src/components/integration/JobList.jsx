@@ -96,7 +96,7 @@ export const JobList = () => {
                                             <Cpu className="text-blue-400" size={20} />
                                         </div>
                                         <div>
-                                            <h4 className="text-white font-bold leading-none">{job.dockerURI}</h4>
+                                            <h4 className="text-white font-bold leading-none">{job.docker_uri}</h4>
                                             <p className="text-gray-500 text-[10px] uppercase font-mono mt-1 tracking-widest">{job.id.slice(0, 8)}</p>
                                         </div>
                                     </div>

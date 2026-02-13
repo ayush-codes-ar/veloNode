@@ -17,6 +17,10 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_dev_only';
 
+// --- Deployment Fix for Render ---
+// Render uses a proxy, which express-rate-limit needs to know about to correctly identify IPs.
+app.set('trust proxy', 1);
+
 // --- Security Middleware ---
 app.use(helmet()); // Secure HTTP headers
 
@@ -39,8 +43,8 @@ const pool = new Pool({
 // Correct CORS settings for production/development
 app.use(cors({
     origin: '*',
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-KEY']
 }));
 app.use(bodyParser.json());
 
@@ -235,7 +239,7 @@ app.get('/users', async (req, res) => {
 
 // 5. Create Job (Researcher Spends Credits) - Protected
 app.post('/job', authenticateToken, async (req, res) => {
-    const { dockerURI, inputHash, VRAM, bounty, verificationHash } = req.body;
+    const { docker_uri, input_hash, vram, bounty, verification_hash } = req.body;
     const username = req.user.username;
 
     if (!bounty) return res.status(400).json({ error: 'Bounty required' });
@@ -255,18 +259,18 @@ app.post('/job', authenticateToken, async (req, res) => {
         const newJob = {
             id: uuidv4(),
             researcher: username,
-            dockerURI,
-            inputHash,
-            vram: VRAM,
+            docker_uri: docker_uri || 'pytorch/pytorch:latest',
+            input_hash: input_hash || 'ipfs://empty',
+            vram: vram || '8GB',
             bounty: Number(bounty),
             status: 'OPEN',
-            verification_hash: verificationHash || null,
+            verification_hash: verification_hash || null,
             created_at: Date.now()
         };
 
         await client.query(
             'INSERT INTO jobs (id, researcher, docker_uri, input_hash, vram, bounty, status, verification_hash, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-            [newJob.id, newJob.researcher, newJob.dockerURI, newJob.inputHash, newJob.vram, newJob.bounty, newJob.status, newJob.verification_hash, newJob.created_at]
+            [newJob.id, newJob.researcher, newJob.docker_uri, newJob.input_hash, newJob.vram, newJob.bounty, newJob.status, newJob.verification_hash, newJob.created_at]
         );
 
         await client.query('COMMIT');

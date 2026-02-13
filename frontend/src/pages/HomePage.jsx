@@ -1,6 +1,6 @@
 import React from 'react';
 import Navbar from '../components/Navbar';
-import Hero from '../components/Hero';
+import CinematicHero from '../components/CinematicHero';
 import HowItWorks from '../components/HowItWorks';
 import TechStack from '../components/TechStack';
 import Security from '../components/Security';
@@ -10,7 +10,7 @@ const HomePage = () => {
     return (
         <div className="app-container">
             <Navbar />
-            <Hero />
+            <CinematicHero />
             <HowItWorks />
             <div className="py-10">
                 <TechStack />
