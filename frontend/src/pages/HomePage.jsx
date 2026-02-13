@@ -8,11 +8,11 @@ import Footer from '../components/Footer';
 
 const HomePage = () => {
     return (
-        <div className="app-container">
+        <div className="app-container bg-black">
             <Navbar />
             <CinematicHero />
             <HowItWorks />
-            <div className="py-10">
+            <div className="py-10 bg-black">
                 <TechStack />
             </div>
             <Security />
